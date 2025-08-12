@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Match & Convert: Drug Dose Challenge</title>
+<style>
+  :root{
+    --bg:#f8fafc;
+    --card:#ffffff;
+    --muted:#64748b;
+    --border:#e2e8f0;
+    --accent:#10b981;
+    --accent-2:#4f46e5;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;color:#0f172a}
+  .wrap{max-width:1100px;margin:0 auto;padding:24px}
+  .toolbar{display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
+  @media(min-width:720px){.toolbar{flex-direction:row;align-items:flex-end;justify-content:space-between}}
+  h1{font-size:clamp(20px,3.2vw,28px);margin:0 0 4px 0}
+  .muted{color:var(--muted);font-size:14px}
+  .btn{border:1px solid var(--border);background:#fff;border-radius:16px;padding:8px 14px;font-weight:600;font-size:14px;cursor:pointer;box-shadow:0 1px 1px rgba(0,0,0,.03)}
+  .btn:hover{background:#f1f5f9}
+  .btn.accent{background:#ecfdf5;border-color:#a7f3d0}
+  .btn.accent:hover{background:#d1fae5}
+  .btn.purple{background:#eef2ff;border-color:#c7d2fe}
+  .btn.purple:hover{background:#e0e7ff}
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+  @media(min-width:640px){.stats{grid-template-columns:repeat(4,1fr)}}
+  .stat{background:#fff;border:1px solid var(--border);border-radius:16px;padding:10px 12px;box-shadow:0 1px 1px rgba(0,0,0,.03)}
+  .stat .label{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+  .stat .value{font-weight:700;font-size:18px}
+  .grid{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+  @media(min-width:580px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media(min-width:900px){.grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
+  .card{position:relative;aspect-ratio:4/3;border-radius:18px;border:1px solid var(--border);background:#e2e8f0;cursor:pointer;transition:transform .12s ease, background .2s ease, border-color .2s ease}
+  .card:hover{transform:scale(1.02)}
+  .card.flipped{background:#fff;border-color:#86efac}
+  .card.matched{opacity:.7}
+  .card .inner{display:flex;flex-direction:column;justify-content:space-between;height:100%;padding:10px}
+  .badge{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+  .face{font-size:clamp(16px,2.6vw,22px);font-weight:800;color:#0f172a}
+  .face.hidden{color:#64748b}
+  .editor{background:#fff;border:1px solid #c7d2fe;border-radius:16px;padding:12px;margin-bottom:14px;box-shadow:0 1px 1px rgba(0,0,0,.03)}
+  .editor h2{margin:0 0 8px 0;font-size:16px}
+  textarea{width:100%;height:160px;border:1px solid var(--border);border-radius:12px;padding:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:14px}
+  .small{font-size:13px;color:var(--muted);}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="toolbar">
+      <div>
+        <h1>💊 Match & Convert: Drug Dose Challenge</h1>
+        <div class="muted">Match each drug order with its correct unit conversion. Perfect for quick-fire skills sessions.</div>
+      </div>
+      <div class="row">
+        <button class="btn" id="newGameBtn">New Game</button>
+        <button class="btn accent" id="revealBtn">Reveal All</button>
+        <button class="btn purple" id="editorBtn">✏️ Editor</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="label">Moves</div><div class="value" id="moves">0</div></div>
+      <div class="stat"><div class="label">Time</div><div class="value" id="time">00:00</div></div>
+      <div class="stat"><div class="label">Pairs</div><div class="value"><span id="pairsDone">0</span>/<span id="pairsTotal">0</span></div></div>
+      <div class="stat"><div class="label">Status</div><div class="value" id="status">Playing</div></div>
+    </div>
+
+    <div class="editor" id="editor" style="display:none;">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <h2>✏️ Edit Pairs</h2>
+        <div class="row">
+          <button class="btn purple" id="savePairsBtn">Save</button>
+          <button class="btn" id="closeEditorBtn">Close</button>
+        </div>
+      </div>
+      <div class="small" style="margin-bottom:8px;">Format: <code>left = right</code> (one per line). Example: <code>0.125 g = 125 mg</code></div>
+      <textarea id="pairsText"></textarea>
+      <div id="editorError" class="small" style="color:#dc2626;margin-top:6px;"></div>
+    </div>
+
+    <div id="grid" class="grid" aria-live="polite"></div>
+
+    <div class="small" style="margin-top:12px;">Tip: Use the Editor to paste your own list like <code>0.125 g = 125 mg</code> (one pair per line). Your changes autosave locally (this browser only).</div>
+  </div>
+
+<script>
+(function(){
+  const DEFAULT_PAIRS = [
+    ["0.5 g","500 mg"],
+    ["250 mg","0.25 g"],
+    ["2 mg","2000 micrograms"],
+    ["1 L","1000 mL"],
+    ["0.05 g","50 mg"],
+    ["750 micrograms","0.75 mg"],
+    ["5 mL","0.005 L"],
+    ["3 g","3000 mg"],
+    ["1 mg","1000 micrograms"],
+    ["0.2 g","200 mg"]
+  ];
+
+  // --- State ---
+  let pairs = loadPairs();
+  let deck = buildDeck(pairs);
+  let flipped = [];            // array of card.id
+  let matchedIds = new Set();  // Set of pairId (number)
+  let busy = false;
+  let moves = 0;
+  let startTime = Date.now();
+  let timer = null;
+  let revealAll = false;
+
+  // --- Elements ---
+  const gridEl = document.getElementById('grid');
+  const movesEl = document.getElementById('moves');
+  const timeEl = document.getElementById('time');
+  const pairsDoneEl = document.getElementById('pairsDone');
+  const pairsTotalEl = document.getElementById('pairsTotal');
+  const statusEl = document.getElementById('status');
+  const newGameBtn = document.getElementById('newGameBtn');
+  const revealBtn = document.getElementById('revealBtn');
+  const editorBtn = document.getElementById('editorBtn');
+  const editorBox = document.getElementById('editor');
+  const pairsText = document.getElementById('pairsText');
+  const savePairsBtn = document.getElementById('savePairsBtn');
+  const closeEditorBtn = document.getElementById('closeEditorBtn');
+  const editorError = document.getElementById('editorError');
+
+  // --- Init ---
+  pairsTotalEl.textContent = pairs.length;
+  pairsText.value = pairs.map(([l,r]) => `${l} = ${r}`).join("\\n");
+  drawGrid();
+  startTimer();
+
+  // --- Events ---
+  newGameBtn.addEventListener('click', () => resetGame());
+  revealBtn.addEventListener('click', () => {
+    revealAll = !revealAll;
+    revealBtn.textContent = revealAll ? 'Hide All' : 'Reveal All';
+    drawGrid();
+  });
+  editorBtn.addEventListener('click', () => editorBox.style.display = editorBox.style.display === 'none' ? 'block' : 'none');
+  closeEditorBtn.addEventListener('click', () => editorBox.style.display = 'none');
+  savePairsBtn.addEventListener('click', () => {
+    try{
+      const rows = pairsText.value
+        .split(/\\n+/)
+        .map(s=>s.trim())
+        .filter(Boolean)
+        .map(line => line.split('=')
+          .map(s => s.trim()))
+        .filter(arr => arr.length===2 && arr[0] && arr[1]);
+      if(rows.length===0){ throw new Error('No valid rows'); }
+      pairs = rows;
+      savePairs(rows);
+      resetGame(rows);
+      editorError.textContent='';
+      editorBox.style.display='none';
+    }catch(e){
+      editorError.textContent = \"Could not save. Please check the format: one pair per line, e.g. '0.5 g = 500 mg'.\";
+    }
+  });
+
+  // --- Functions ---
+  function shuffle(a){
+    const arr = a.slice();
+    for(let i=arr.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [arr[i],arr[j]]=[arr[j],arr[i]];
+    }
+    return arr;
+  }
+
+  function buildDeck(pairs){
+    let id=1;
+    const deck=[];
+    pairs.forEach(([left,right])=>{
+      const pairId = id++;
+      deck.push({ id: pairId+'-A', pairId, face:left, type:'Order' });
+      deck.push({ id: pairId+'-B', pairId, face:right, type:'Conversion' });
+    });
+    return shuffle(deck);
+  }
+
+  function drawGrid(){
+    pairsDoneEl.textContent = matchedIds.size;
+    pairsTotalEl.textContent = pairs.length;
+    gridEl.innerHTML = '';
+    deck.forEach(card => {
+      const isMatched = matchedIds.has(card.pairId);
+      const isFlipped = revealAll || isMatched || flipped.includes(card.id);
+
+      const btn = document.createElement('button');
+      btn.className = 'card' + (isFlipped?' flipped':'') + (isMatched?' matched':'');
+      btn.setAttribute('aria-label', `card ${card.id}`);
+      btn.disabled = isMatched || revealAll;
+      btn.addEventListener('click', ()=> onCardClick(card));
+
+      const inner = document.createElement('div');
+      inner.className='inner';
+
+      const top = document.createElement('div');
+      top.className='badge';
+      top.innerHTML = `<span>${card.type}</span>`;
+
+      const face = document.createElement('div');
+      face.className = 'face ' + (isFlipped ? '' : 'hidden');
+      face.textContent = isFlipped ? card.face : 'Click to flip';
+
+      inner.appendChild(top);
+      inner.appendChild(face);
+      btn.appendChild(inner);
+      gridEl.appendChild(btn);
+    });
+
+    statusEl.textContent = matchedIds.size===pairs.length ? 'Completed 🎉' : (busy ? 'Checking…' : 'Playing');
+    movesEl.textContent = moves;
+  }
+
+  function onCardClick(card){
+    if(busy) return;
+    if(matchedIds.has(card.pairId)) return;
+    if(flipped.includes(card.id)) return;
+
+    flipped = flipped.concat(card.id);
+    drawGrid();
+
+    if(flipped.length===2){
+      busy=true;
+      moves++;
+      const [aId,bId]=flipped;
+      const a = deck.find(c=>c.id===aId);
+      const b = deck.find(c=>c.id===bId);
+      const isMatch = a && b && a.pairId===b.pairId && a.id!==b.id;
+
+      setTimeout(()=>{
+        if(isMatch){ matchedIds.add(a.pairId); }
+        flipped = [];
+        busy=false;
+        drawGrid();
+      }, isMatch ? 400 : 800);
+    }
+  }
+
+  function resetGame(newPairs=pairs){
+    deck = buildDeck(newPairs);
+    flipped = [];
+    matchedIds = new Set();
+    busy=false;
+    moves=0;
+    startTime = Date.now();
+    revealAll = false;
+    revealBtn.textContent = 'Reveal All';
+    drawGrid();
+    restartTimer();
+  }
+
+  function startTimer(){
+    timer = setInterval(()=>{
+      const secs = Math.floor((Date.now()-startTime)/1000);
+      const mm = String(Math.floor(secs/60)).padStart(2,'0');
+      const ss = String(secs%60).padStart(2,'0');
+      timeEl.textContent = `${mm}:${ss}`;
+    }, 500);
+  }
+  function restartTimer(){
+    if(timer) clearInterval(timer);
+    startTimer();
+  }
+
+  function loadPairs(){
+    try{
+      const raw = localStorage.getItem('drugPairsV1');
+      if(!raw) return DEFAULT_PAIRS.slice();
+      const parsed = JSON.parse(raw);
+      if(Array.isArray(parsed) && parsed.every(p=>Array.isArray(p)&&p.length===2)) return parsed;
+      return DEFAULT_PAIRS.slice();
+    }catch(e){
+      return DEFAULT_PAIRS.slice();
+    }
+  }
+  function savePairs(p){ localStorage.setItem('drugPairsV1', JSON.stringify(p)); }
+})();</script>
+</body>
+</html>
